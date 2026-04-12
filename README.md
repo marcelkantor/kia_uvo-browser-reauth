@@ -96,6 +96,12 @@ Current MVP progress:
 
 ### Quick install on Windows
 
+Prerequisites:
+
+- Windows with a local Google Chrome installation
+- Python 3 available as `py` or `python`
+- Home Assistant config available locally, by default under `Z:\`
+
 From PowerShell:
 
 ```powershell
@@ -112,15 +118,39 @@ What the installer does:
 1. Backs up the existing `kia_uvo` integration from your HA config, if present.
 2. Copies this fork into `custom_components/kia_uvo`.
 3. Copies the local broker files into `C:\tools\hyundai-broker`.
-4. Registers `hyundai-broker://` for the current Windows user.
+4. Installs broker Python dependencies from `broker/requirements.txt`.
+5. Registers `hyundai-broker://` for the current Windows user.
+
+Optional flags:
+
+- `-SkipBrokerRequirements`
+  - skips `pip install -r requirements.txt`
+- `-SkipProtocolRegistration`
+  - skips Windows protocol registration
+- `-SkipBroker`
+  - installs only the HA integration
+- `-SkipIntegration`
+  - installs only the local broker side
 
 ### Manual install
 
 1. Copy [`custom_components/kia_uvo`](./custom_components/kia_uvo) into your HA config under `custom_components/kia_uvo`.
 2. Copy [`broker`](./broker) to your Windows machine.
-3. Run [`RegisterHyundaiBrokerProtocol.ps1`](./broker/RegisterHyundaiBrokerProtocol.ps1).
-4. Restart Home Assistant Core.
-5. Use `Re-authenticate` in the integration UI.
+3. Install Python requirements:
+
+   ```powershell
+   py -3 -m pip install -r .\broker\requirements.txt
+   ```
+
+   or:
+
+   ```powershell
+   python -m pip install -r .\broker\requirements.txt
+   ```
+
+4. Run [`RegisterHyundaiBrokerProtocol.ps1`](./broker/RegisterHyundaiBrokerProtocol.ps1).
+5. Restart Home Assistant Core.
+6. Use `Re-authenticate` in the integration UI.
 
 Not yet completed:
 

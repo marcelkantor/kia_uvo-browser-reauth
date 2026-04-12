@@ -3,6 +3,7 @@ param(
     [string]$BrokerInstallPath = "C:\tools\hyundai-broker",
     [switch]$SkipIntegration,
     [switch]$SkipBroker,
+    [switch]$SkipBrokerRequirements,
     [switch]$SkipProtocolRegistration
 )
 
@@ -20,6 +21,40 @@ function Copy-DirectoryClean {
 
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
+}
+
+function Invoke-Python {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        & py -3 @Arguments
+        return $LASTEXITCODE
+    }
+
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        & python @Arguments
+        return $LASTEXITCODE
+    }
+
+    throw "Python 3 was not found. Install Python 3 for Windows before installing the broker."
+}
+
+function Test-ChromeInstalled {
+    $candidates = @(
+        "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+        "$env:LocalAppData\Google\Chrome\Application\chrome.exe"
+    ) | Where-Object { $_ }
+
+    foreach ($path in $candidates) {
+        if (Test-Path $path) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -58,9 +93,26 @@ if (-not $SkipBroker) {
     Copy-Item -Path (Join-Path $brokerSource '*') -Destination $BrokerInstallPath -Recurse -Force
     Write-Host "Installed broker -> $BrokerInstallPath"
 
+    if (-not $SkipBrokerRequirements) {
+        $requirementsFile = Join-Path $BrokerInstallPath 'requirements.txt'
+        if (-not (Test-Path $requirementsFile)) {
+            throw "Broker requirements file not found: $requirementsFile"
+        }
+
+        Write-Host "Installing broker Python requirements..."
+        $pipExitCode = Invoke-Python -Arguments @('-m', 'pip', 'install', '-r', $requirementsFile)
+        if ($pipExitCode -ne 0) {
+            throw "Failed to install broker Python requirements. Exit code: $pipExitCode"
+        }
+    }
+
     if (-not $SkipProtocolRegistration) {
         $registerScript = Join-Path $BrokerInstallPath 'RegisterHyundaiBrokerProtocol.ps1'
         powershell -ExecutionPolicy Bypass -File $registerScript
+    }
+
+    if (-not (Test-ChromeInstalled)) {
+        Write-Warning "Google Chrome was not detected. The broker requires a local Chrome installation."
     }
 }
 
