@@ -56,6 +56,7 @@ class HyundaiKiaConnectDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         """Initialize."""
         self.platforms: set[str] = set()
+        self.config_entry = config_entry
 
         self.vehicle_manager = VehicleManager(
             region=config_entry.data.get(CONF_REGION),
@@ -215,7 +216,7 @@ class HyundaiKiaConnectDataUpdateCoordinator(DataUpdateCoordinator):
         ensures the fresh charge limits are read back immediately.
 
         Uses async_set_updated_data instead of async_refresh to avoid a
-        redundant cmm/gvi API call â€” the force refresh already updates the
+        redundant cmm/gvi API call — the force refresh already updates the
         vehicle objects in-place (rems/rvs + cmm/gvi), so we just need to
         notify HA entities to re-read their state.
         """

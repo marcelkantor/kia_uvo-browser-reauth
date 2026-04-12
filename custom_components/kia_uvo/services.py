@@ -2,8 +2,8 @@ import logging
 from typing import cast
 from datetime import datetime
 
-
-from homeassistant.const import ATTR_DEVICE_ID
+from homeassistant.components import persistent_notification
+from homeassistant.const import ATTR_DEVICE_ID, CONF_USERNAME
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import ServiceCall, callback, HomeAssistant
 from .coordinator import HyundaiKiaConnectDataUpdateCoordinator
@@ -15,6 +15,7 @@ from hyundai_kia_connect_api import (
 )
 
 from .const import DOMAIN
+from .reauth_session import async_get_session_manager
 
 SERVICE_UPDATE = "update"
 SERVICE_FORCE_UPDATE = "force_update"
@@ -34,6 +35,7 @@ SERVICE_START_HAZARD_LIGHTS_AND_HORN = "start_hazard_lights_and_horn"
 SERVICE_START_VALET_MODE = "start_valet_mode"
 SERVICE_STOP_VALET_MODE = "stop_valet_mode"
 SERVICE_SET_WINDOWS = "set_windows"
+SERVICE_START_REAUTH_BROKER = "start_reauth_broker"
 
 SUPPORTED_SERVICES = (
     SERVICE_UPDATE,
@@ -54,6 +56,7 @@ SUPPORTED_SERVICES = (
     SERVICE_START_VALET_MODE,
     SERVICE_STOP_VALET_MODE,
     SERVICE_SET_WINDOWS,
+    SERVICE_START_REAUTH_BROKER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -287,6 +290,37 @@ def async_setup_services(hass: HomeAssistant) -> bool:
         vehicle_id = _get_vehicle_id_from_device(hass, call)
         await coordinator.async_stop_valet_mode(vehicle_id)
 
+    async def async_handle_start_reauth_broker(call):
+        coordinator = _get_coordinator_from_device(hass, call)
+        vehicle_id = _get_vehicle_id_from_device(hass, call)
+        vehicle = coordinator.vehicle_manager.vehicles.get(vehicle_id)
+        manager = async_get_session_manager(hass)
+        session = await manager.async_create_session(
+            entry_id=coordinator.config_entry.entry_id,
+            username=coordinator.config_entry.data.get(CONF_USERNAME),
+        )
+        placeholders = manager.async_description_placeholders(session)
+        title = (
+            f"{vehicle.name} ({vehicle.model})"
+            if vehicle is not None
+            else "Kia Uvo / Hyundai Bluelink"
+        )
+        persistent_notification.async_create(
+            hass,
+            (
+                "Run the local Hyundai token broker and complete the Hyundai "
+                "login in Chrome.\n\n"
+                f"Session expires at: {placeholders['expires_at']}\n\n"
+                f"Webhook URL:\n{placeholders['webhook_url']}\n\n"
+                f"State:\n{placeholders['state']}\n\n"
+                f"Suggested command:\n{placeholders['broker_command']}"
+            ),
+            title=title,
+            notification_id=(
+                f"kia_uvo_broker_reauth_{coordinator.config_entry.entry_id}"
+            ),
+        )
+
     services = {
         SERVICE_FORCE_UPDATE: async_handle_force_update,
         SERVICE_UPDATE: async_handle_update,
@@ -306,6 +340,7 @@ def async_setup_services(hass: HomeAssistant) -> bool:
         SERVICE_START_VALET_MODE: async_handle_start_valet_mode,
         SERVICE_STOP_VALET_MODE: async_handle_stop_valet_mode,
         SERVICE_SET_WINDOWS: async_handle_set_windows,
+        SERVICE_START_REAUTH_BROKER: async_handle_start_reauth_broker,
     }
 
     for service in SUPPORTED_SERVICES:

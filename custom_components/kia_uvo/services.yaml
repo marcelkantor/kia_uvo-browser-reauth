@@ -461,3 +461,11 @@ stop_valet_mode:
       selector:
         device:
           integration: kia_uvo
+start_reauth_broker:
+  description: Start a broker-backed reauthentication session and show webhook details in a persistent notification
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: kia_uvo

@@ -6,15 +6,18 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 import secrets
 from typing import Any
+from urllib.parse import urlencode
 
 from aiohttp import web
 
+from homeassistant.components import persistent_notification
 from homeassistant.components import webhook
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.util import dt as dt_util
 
 from .const import DATA_BROKER_REAUTH_MANAGER, DOMAIN
+from .token_store import async_store_token_and_reload
 
 SESSION_TTL = timedelta(minutes=15)
 
@@ -23,7 +26,7 @@ SESSION_TTL = timedelta(minutes=15)
 class BrokerReauthSession:
     """Runtime-only broker session used during reauthentication."""
 
-    flow_id: str
+    flow_id: str | None
     entry_id: str
     webhook_id: str
     state: str
@@ -43,6 +46,7 @@ class BrokerReauthSessionManager:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self._sessions_by_flow: dict[str, BrokerReauthSession] = {}
+        self._sessions_by_entry: dict[str, BrokerReauthSession] = {}
         self._sessions_by_webhook: dict[str, BrokerReauthSession] = {}
         self._sessions_by_state: dict[str, BrokerReauthSession] = {}
 
@@ -58,14 +62,16 @@ class BrokerReauthSessionManager:
 
     def _remove_session(self, session: BrokerReauthSession) -> None:
         webhook.async_unregister(self.hass, session.webhook_id)
-        self._sessions_by_flow.pop(session.flow_id, None)
+        if session.flow_id is not None:
+            self._sessions_by_flow.pop(session.flow_id, None)
+        self._sessions_by_entry.pop(session.entry_id, None)
         self._sessions_by_webhook.pop(session.webhook_id, None)
         self._sessions_by_state.pop(session.state, None)
 
     async def async_create_session(
         self,
         *,
-        flow_id: str,
+        flow_id: str | None = None,
         entry_id: str,
         username: str | None = None,
     ) -> BrokerReauthSession:
@@ -73,7 +79,11 @@ class BrokerReauthSessionManager:
 
         self._cleanup_expired()
 
-        old_session = self._sessions_by_flow.get(flow_id)
+        old_session = (
+            self._sessions_by_flow.get(flow_id)
+            if flow_id is not None
+            else self._sessions_by_entry.get(entry_id)
+        )
         if old_session is not None:
             self._remove_session(old_session)
 
@@ -97,7 +107,9 @@ class BrokerReauthSessionManager:
             allowed_methods=("POST",),
         )
 
-        self._sessions_by_flow[flow_id] = session
+        if flow_id is not None:
+            self._sessions_by_flow[flow_id] = session
+        self._sessions_by_entry[entry_id] = session
         self._sessions_by_webhook[session.webhook_id] = session
         self._sessions_by_state[session.state] = session
         return session
@@ -113,6 +125,12 @@ class BrokerReauthSessionManager:
 
         self._cleanup_expired()
         return self._sessions_by_state.get(state)
+
+    def async_get_by_entry(self, entry_id: str) -> BrokerReauthSession | None:
+        """Get a session by config entry id."""
+
+        self._cleanup_expired()
+        return self._sessions_by_entry.get(entry_id)
 
     async def async_finish_session(self, session: BrokerReauthSession) -> None:
         """Mark a session as finished and unregister its webhook."""
@@ -149,12 +167,24 @@ class BrokerReauthSessionManager:
             f'--state "{session.state}" '
             f'--webhook-url "{webhook_url}"'
         )
+        broker_launch_url = (
+            "hyundai-broker://launch?"
+            + urlencode(
+                {
+                    "state": session.state,
+                    "webhook_url": webhook_url,
+                    "language": "en",
+                    "ui_locales": "en-US",
+                }
+            )
+        )
         expires_at = dt_util.as_local(session.expires_at).strftime("%Y-%m-%d %H:%M:%S")
         return {
             "state": session.state,
             "webhook_url": webhook_url,
             "expires_at": expires_at,
             "broker_command": broker_command,
+            "broker_launch_url": broker_launch_url,
         }
 
     async def _async_handle_webhook(
@@ -209,13 +239,37 @@ class BrokerReauthSessionManager:
         session.received_at = dt_util.utcnow()
         session.broker_source = payload.get("source", {}).get("broker")
 
-        await hass.config_entries.flow.async_configure(
-            session.flow_id,
-            {
-                "reauth_session_state": session.state,
-                "reauth_session_from_webhook": True,
-            },
-        )
+        if session.flow_id is not None:
+            await hass.config_entries.flow.async_configure(
+                session.flow_id,
+                {
+                    "reauth_session_state": session.state,
+                    "reauth_session_from_webhook": True,
+                },
+            )
+        else:
+            entry = hass.config_entries.async_get_entry(session.entry_id)
+            if entry is None:
+                session.last_error = "entry_not_found"
+                return web.json_response(
+                    {"status": "error", "reason": "entry_not_found"},
+                    status=404,
+                )
+            try:
+                await async_store_token_and_reload(hass, entry, token_payload)
+            except Exception:
+                session.last_error = "store_failed"
+                return web.json_response(
+                    {"status": "error", "reason": "store_failed"},
+                    status=500,
+                )
+            persistent_notification.async_create(
+                hass,
+                "Kia Uvo / Hyundai Bluelink token was refreshed and the integration was reloaded.",
+                title="Kia Uvo / Hyundai Bluelink",
+                notification_id=f"{DOMAIN}_reauth_{session.entry_id}",
+            )
+            await self.async_finish_session(session)
 
         return web.json_response({"status": "ok"})
 

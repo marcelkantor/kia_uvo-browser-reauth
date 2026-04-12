@@ -3,6 +3,14 @@
 Experimental fork of `kia_uvo` focused on making Hyundai Bluelink / Kia Uvo
 reauthentication feel native inside Home Assistant.
 
+Displayed integration name:
+
+- `Hyundai / Kia Connect Reauth`
+
+Current custom fork version:
+
+- `2.53.0-broker.2`
+
 ## Goal
 
 The long-term goal is to replace the current "external token script" workflow
@@ -59,6 +67,14 @@ extracting reusable browser-reauth helpers.
   - captures the final authorization code
   - exchanges it for a token
   - posts the token to a Home Assistant webhook
+- `broker/hyundai_broker_protocol.py`
+  - handler for `hyundai-broker://launch?...` URLs on Windows
+- `broker/RegisterHyundaiBrokerProtocol.ps1`
+  - one-time current-user registration of the custom `hyundai-broker://` protocol
+- `Install-KiaUvoBrowserReauth.ps1`
+  - installs the integration into a Home Assistant config directory
+  - installs the local Windows broker helper
+  - registers the optional `hyundai-broker://` protocol
 - `broker/HyundaiTokenBroker.bat`
   - Windows wrapper for the broker script
 - architecture notes in `docs/ARCHITECTURE.md`
@@ -74,6 +90,37 @@ Current MVP progress:
 - short-lived broker session manager implemented
 - one-time webhook receiver implemented
 - `reauth` flow extended with a broker waiting step for Hyundai/Kia Europe
+- optional `hyundai-broker://` launch URL exposed in the reauth dialog
+
+## Installation
+
+### Quick install on Windows
+
+From PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Install-KiaUvoBrowserReauth.ps1
+```
+
+Defaults:
+
+- Home Assistant config path: `Z:\`
+- local broker install path: `C:\tools\hyundai-broker`
+
+What the installer does:
+
+1. Backs up the existing `kia_uvo` integration from your HA config, if present.
+2. Copies this fork into `custom_components/kia_uvo`.
+3. Copies the local broker files into `C:\tools\hyundai-broker`.
+4. Registers `hyundai-broker://` for the current Windows user.
+
+### Manual install
+
+1. Copy [`custom_components/kia_uvo`](./custom_components/kia_uvo) into your HA config under `custom_components/kia_uvo`.
+2. Copy [`broker`](./broker) to your Windows machine.
+3. Run [`RegisterHyundaiBrokerProtocol.ps1`](./broker/RegisterHyundaiBrokerProtocol.ps1).
+4. Restart Home Assistant Core.
+5. Use `Re-authenticate` in the integration UI.
 
 Not yet completed:
 

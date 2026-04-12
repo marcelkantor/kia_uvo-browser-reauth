@@ -19,6 +19,8 @@ The broker solves exactly that.
    - one-time webhook id
    - expiration time
 3. Home Assistant shows instructions or a launch link for the local broker.
+4. On Windows, the dialog can optionally expose a `hyundai-broker://launch?...`
+   link when the protocol handler is registered on the desktop.
 
 ### Broker side
 
@@ -50,6 +52,7 @@ The broker solves exactly that.
 - broker should POST only to the specific webhook created for the reauth session
 - broker payload should include the expected `state`
 - Home Assistant should reject expired or already-used sessions
+- optional custom protocol registration should stay local to the current user
 
 ## MVP checklist
 

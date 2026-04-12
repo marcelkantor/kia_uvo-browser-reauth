@@ -387,7 +387,31 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             if user_input["reconfigure_choice"] == "reauth":
                 self._is_reconfigure = True
-                return await self.async_step_user()
+                self.reauth_entry = self.hass.config_entries.async_get_entry(
+                    self.context["entry_id"]
+                ) or self._get_reconfigure_entry()
+                if (
+                    self.reauth_entry is not None
+                    and self.reauth_entry.data.get(CONF_REGION) == 1
+                    and self.reauth_entry.data.get(CONF_BRAND) in (1, 2)
+                ):
+                    manager = async_get_session_manager(self.hass)
+                    session = await manager.async_create_session(
+                        flow_id=self.flow_id,
+                        entry_id=self.reauth_entry.entry_id,
+                        username=self.reauth_entry.data.get(CONF_USERNAME),
+                    )
+                    self._broker_session_state = session.state
+                    return self.async_external_step(
+                        step_id="reauth_broker",
+                        url=manager.async_description_placeholders(session)[
+                            "broker_launch_url"
+                        ],
+                        description_placeholders=manager.async_description_placeholders(
+                            session
+                        ),
+                    )
+                return await self.async_step_reauth_confirm()
             else:
                 return await self.async_step_reconfigure_pin()
 
@@ -441,7 +465,15 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     username=entry.data.get(CONF_USERNAME),
                 )
                 self._broker_session_state = session.state
-                return await self.async_step_reauth_broker()
+                return self.async_external_step(
+                    step_id="reauth_broker",
+                    url=manager.async_description_placeholders(session)[
+                        "broker_launch_url"
+                    ],
+                    description_placeholders=manager.async_description_placeholders(
+                        session
+                    ),
+                )
 
             return self.async_show_form(
                 step_id="reauth_confirm",
@@ -457,9 +489,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_user()
 
     async def async_step_reauth_broker(self, user_input=None):
-        """Wait for the local broker to deliver a renewed token."""
+        """Launch the local broker and wait for webhook completion."""
 
-        errors = {}
         manager = async_get_session_manager(self.hass)
         session = manager.async_get_by_flow(self.flow_id)
 
@@ -467,37 +498,51 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if self._broker_session_state is not None:
                 session = manager.async_get_by_state(self._broker_session_state)
             if session is None:
-                errors["base"] = "broker_session_expired"
-                return self.async_show_form(
-                    step_id="reauth_confirm",
-                    data_schema=vol.Schema({}),
-                    errors=errors,
-                )
+                return self.async_abort(reason="reauth_unsuccessful")
 
         if user_input is not None:
-            session_state = user_input.get("reauth_session_state")
-            if session_state is None:
-                errors["base"] = "waiting_for_broker"
-            elif session_state != session.state:
-                errors["base"] = "broker_invalid_payload"
-            elif session.payload is None:
-                errors["base"] = session.last_error or "waiting_for_broker"
-            else:
-                token_payload = session.payload["token"]
-                await async_store_token_and_reload(
-                    self.hass,
-                    self.reauth_entry,
-                    token_payload,
+            if session.payload is None:
+                return self.async_external_step(
+                    step_id="reauth_broker",
+                    url=manager.async_description_placeholders(session)[
+                        "broker_launch_url"
+                    ],
+                    description_placeholders=manager.async_description_placeholders(
+                        session
+                    ),
                 )
-                await manager.async_finish_session(session)
-                return self.async_abort(reason="reauth_successful")
+            return self.async_external_step_done(next_step_id="reauth_finish")
 
-        return self.async_show_form(
+        return self.async_external_step(
             step_id="reauth_broker",
-            data_schema=vol.Schema({}),
-            errors=errors,
+            url=manager.async_description_placeholders(session)["broker_launch_url"],
             description_placeholders=manager.async_description_placeholders(session),
         )
+
+    async def async_step_reauth_finish(self, user_input=None):
+        """Store the token received by the broker webhook."""
+
+        manager = async_get_session_manager(self.hass)
+        session = manager.async_get_by_flow(self.flow_id)
+        if session is None and self._broker_session_state is not None:
+            session = manager.async_get_by_state(self._broker_session_state)
+
+        if session is None:
+            return self.async_abort(reason="reauth_unsuccessful")
+
+        if session.payload is None:
+            if session.last_error is not None:
+                return self.async_abort(reason="reauth_unsuccessful")
+            return await self.async_step_reauth_broker()
+
+        token_payload = session.payload["token"]
+        await async_store_token_and_reload(
+            self.hass,
+            self.reauth_entry,
+            token_payload,
+        )
+        await manager.async_finish_session(session)
+        return self.async_abort(reason="reauth_successful")
 
 
 class InvalidAuth(HomeAssistantError):

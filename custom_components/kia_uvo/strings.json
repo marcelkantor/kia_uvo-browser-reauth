@@ -34,7 +34,7 @@
       },
       "reauth_broker": {
         "title": "Hyundai / Kia Connect - Browser Reauthentication",
-        "description": "Run the local token broker and complete Hyundai login in Chrome.\n\nSession expires at: {expires_at}\n\nWebhook URL:\n`{webhook_url}`\n\nState:\n`{state}`\n\nSuggested command:\n`{broker_command}`\n\nKeep this dialog open. The flow should continue automatically after the broker posts the new token back to Home Assistant."
+        "description": "Open the local broker and complete Hyundai login in Chrome.\n\nIf the broker protocol is installed on Windows, use the button below to launch it.\n\nSession expires at: {expires_at}\n\nWebhook URL:\n`{webhook_url}`\n\nState:\n`{state}`\n\nFallback command:\n`{broker_command}`\n\nKeep this dialog open. Home Assistant should finish reauthentication automatically after the broker posts the new token back."
       },
       "select_otp_method": {
         "title": "Select OTP Method",
@@ -67,6 +67,7 @@
     "abort": {
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
       "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]",
+      "reauth_unsuccessful": "Reauthentication did not complete",
       "reconfigure_successful": "Reconfiguration was successful"
     },
     "error": {
