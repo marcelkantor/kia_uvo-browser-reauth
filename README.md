@@ -152,6 +152,50 @@ Optional flags:
 5. Restart Home Assistant Core.
 6. Use `Re-authenticate` in the integration UI.
 
+## Re-authenticate flow
+
+After installation, the broker-assisted renewal flow looks like this:
+
+1. Open the integration in Home Assistant.
+2. Open the entry menu and choose `Reconfigure`.
+3. Select `Re-authenticate your account` and confirm.
+4. Home Assistant shows an `Open website` button.
+5. Windows asks for confirmation to open the local Python handler for the
+   `hyundai-broker://` protocol.
+6. The local broker opens Chrome.
+7. Complete Hyundai login and the reCAPTCHA in Chrome.
+8. Return to the broker console and press `ENTER` after Hyundai login is
+   complete.
+9. Home Assistant receives the refreshed token through the one-time webhook.
+10. A success dialog appears in Home Assistant.
+
+Important notes:
+
+- the Hyundai login and reCAPTCHA still happen manually in Chrome
+- the broker only automates the local browser launch, token exchange, and
+  secure token handoff back to Home Assistant
+- no manual `.storage` edits are required
+
+## Recommended screenshots for GitHub docs
+
+The best screenshots for documentation are:
+
+1. Integration menu with `Reconfigure`
+2. Reconfigure dialog with `Re-authenticate your account`
+3. Windows prompt asking to open Python
+4. Chrome window on the Hyundai login page
+5. Broker console waiting for `ENTER`
+6. Home Assistant success dialog
+
+If you add them later, a good repo layout would be:
+
+- `docs/images/01-reconfigure-menu.png`
+- `docs/images/02-reauth-choice.png`
+- `docs/images/03-open-python.png`
+- `docs/images/04-hyundai-login.png`
+- `docs/images/05-broker-console.png`
+- `docs/images/06-success-dialog.png`
+
 Not yet completed:
 
 - end-to-end tested install inside a real Home Assistant custom integration
