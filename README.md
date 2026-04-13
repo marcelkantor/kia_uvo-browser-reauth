@@ -82,7 +82,7 @@ extracting reusable browser-reauth helpers.
 
 ## Status
 
-This is an experimental foundation, not a finished release.
+This is an experimental but working MVP.
 
 Current MVP progress:
 
@@ -91,6 +91,8 @@ Current MVP progress:
 - one-time webhook receiver implemented
 - `reauth` flow extended with a broker waiting step for Hyundai/Kia Europe
 - optional `hyundai-broker://` launch URL exposed in the reauth dialog
+- end-to-end reauthentication tested successfully on a real Home Assistant
+  setup with Windows + Chrome
 
 ## Installation
 
@@ -202,11 +204,12 @@ Important notes:
 
 ![Success dialog](docs/images/06-success-dialog.png)
 
-Not yet completed:
+Known limitations:
 
-- end-to-end tested install inside a real Home Assistant custom integration
-- polished launch UX from inside the HA reauth dialog
-- packaged desktop distribution of the broker
+- the Hyundai login and reCAPTCHA still require manual interaction in Chrome
+- the broker currently targets a local Windows desktop workflow
+- the browser opens under Chrome automation control because Selenium is used
+- this is still a custom fork, not an upstream merge
 
 The next implementation milestone is:
 
