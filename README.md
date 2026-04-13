@@ -102,17 +102,16 @@ Prerequisites:
 
 - Windows with a local Google Chrome installation
 - Python 3 available as `py` or `python`
-- Home Assistant config available locally, by default under `Z:\`
+- access to your Home Assistant config directory on the local machine
 
 From PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Install-KiaUvoBrowserReauth.ps1
+powershell -ExecutionPolicy Bypass -File .\Install-KiaUvoBrowserReauth.ps1 -HaConfigPath C:\path\to\ha-config
 ```
 
 Defaults:
 
-- Home Assistant config path: `Z:\`
 - local broker install path: `C:\tools\hyundai-broker`
 
 What the installer does:
@@ -125,6 +124,8 @@ What the installer does:
 
 Optional flags:
 
+- `-HaConfigPath`
+  - path to your Home Assistant config directory
 - `-SkipBrokerRequirements`
   - skips `pip install -r requirements.txt`
 - `-SkipProtocolRegistration`

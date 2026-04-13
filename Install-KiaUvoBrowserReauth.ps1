@@ -1,5 +1,5 @@
 param(
-    [string]$HaConfigPath = "Z:\",
+    [string]$HaConfigPath = "",
     [string]$BrokerInstallPath = "C:\tools\hyundai-broker",
     [switch]$SkipIntegration,
     [switch]$SkipBroker,
@@ -66,6 +66,10 @@ if (-not (Test-Path $integrationSource)) {
 }
 
 if (-not $SkipIntegration) {
+    if ([string]::IsNullOrWhiteSpace($HaConfigPath)) {
+        throw "Specify -HaConfigPath with your Home Assistant config directory, for example C:\\ha\\config or a mapped drive path."
+    }
+
     $targetCustomComponents = Join-Path $HaConfigPath 'custom_components'
     $targetIntegration = Join-Path $targetCustomComponents 'kia_uvo'
     $backupRoot = Join-Path $HaConfigPath 'backups\custom_components'
@@ -118,6 +122,12 @@ if (-not $SkipBroker) {
 
 Write-Host ""
 Write-Host "Next steps:"
-Write-Host "1. Restart Home Assistant Core."
-Write-Host "2. In HA, open the integration and run Re-authenticate."
-Write-Host "3. Use the Open website button or the fallback command if needed."
+if (-not $SkipIntegration) {
+    Write-Host "1. Restart Home Assistant Core."
+    Write-Host "2. In HA, open the integration and run Re-authenticate."
+    Write-Host "3. Use the Open website button or the fallback command if needed."
+} else {
+    Write-Host "1. Verify the broker files under $BrokerInstallPath."
+    Write-Host "2. If needed, run the protocol registration script manually."
+    Write-Host "3. Install the integration into Home Assistant separately."
+}
