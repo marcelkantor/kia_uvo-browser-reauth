@@ -176,25 +176,31 @@ Important notes:
   secure token handoff back to Home Assistant
 - no manual `.storage` edits are required
 
-## Recommended screenshots for GitHub docs
+## Screenshots
 
-The best screenshots for documentation are:
+### 1. Open `Reconfigure` from the integration entry
 
-1. Integration menu with `Reconfigure`
-2. Reconfigure dialog with `Re-authenticate your account`
-3. Windows prompt asking to open Python
-4. Chrome window on the Hyundai login page
-5. Broker console waiting for `ENTER`
-6. Home Assistant success dialog
+![Reconfigure menu](docs/images/01-reconfigure-menu.png)
 
-If you add them later, a good repo layout would be:
+### 2. Choose `Re-authenticate your account`
 
-- `docs/images/01-reconfigure-menu.png`
-- `docs/images/02-reauth-choice.png`
-- `docs/images/03-open-python.png`
-- `docs/images/04-hyundai-login.png`
-- `docs/images/05-broker-console.png`
-- `docs/images/06-success-dialog.png`
+![Re-authenticate choice](docs/images/02-reauth-choice.png)
+
+### 3. Confirm opening the local Python handler
+
+![Open Python prompt](docs/images/03-open-python.png)
+
+### 4. Complete Hyundai login and reCAPTCHA in Chrome
+
+![Hyundai login in Chrome](docs/images/04-hyundai-login.png)
+
+### 5. Return to the broker console and press `ENTER`
+
+![Broker console](docs/images/05-broker-console.png)
+
+### 6. Home Assistant confirms successful reauthentication
+
+![Success dialog](docs/images/06-success-dialog.png)
 
 Not yet completed:
 
