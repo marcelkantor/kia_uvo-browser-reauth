@@ -102,12 +102,12 @@ Prerequisites:
 
 - Windows with a local Google Chrome installation
 - Python 3 available as `py` or `python`
-- access to your Home Assistant config directory on the local machine
+- access to your Home Assistant `custom_components` directory on the local machine
 
 From PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Install-KiaUvoBrowserReauth.ps1 -HaConfigPath C:\path\to\ha-config
+powershell -ExecutionPolicy Bypass -File .\Install-KiaUvoBrowserReauth.ps1 -CustomComponentsPath C:\path\to\ha-config\custom_components
 ```
 
 Defaults:
@@ -124,8 +124,11 @@ What the installer does:
 
 Optional flags:
 
+- `-CustomComponentsPath`
+  - exact path to your Home Assistant `custom_components` directory
 - `-HaConfigPath`
-  - path to your Home Assistant config directory
+  - legacy shortcut for your Home Assistant config directory; the installer
+    derives `custom_components` from it
 - `-SkipBrokerRequirements`
   - skips `pip install -r requirements.txt`
 - `-SkipProtocolRegistration`
@@ -154,6 +157,9 @@ Optional flags:
 4. Run [`RegisterHyundaiBrokerProtocol.ps1`](./broker/RegisterHyundaiBrokerProtocol.ps1).
 5. Restart Home Assistant Core.
 6. Use `Re-authenticate` in the integration UI.
+
+If you do not pass `-CustomComponentsPath`, the installer asks for the exact
+`custom_components` path interactively.
 
 ## Re-authenticate flow
 

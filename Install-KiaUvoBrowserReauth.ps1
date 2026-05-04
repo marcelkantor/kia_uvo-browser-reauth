@@ -1,4 +1,5 @@
 param(
+    [string]$CustomComponentsPath = "",
     [string]$HaConfigPath = "",
     [string]$BrokerInstallPath = "C:\tools\hyundai-broker",
     [switch]$SkipIntegration,
@@ -57,6 +58,28 @@ function Test-ChromeInstalled {
     return $false
 }
 
+function Resolve-CustomComponentsPath {
+    param(
+        [string]$CustomComponentsPath,
+        [string]$HaConfigPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($CustomComponentsPath)) {
+        return $CustomComponentsPath
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($HaConfigPath)) {
+        return (Join-Path $HaConfigPath 'custom_components')
+    }
+
+    $promptedPath = Read-Host "Enter the full path to your Home Assistant custom_components directory"
+    if (-not [string]::IsNullOrWhiteSpace($promptedPath)) {
+        return $promptedPath
+    }
+
+    throw "Specify -CustomComponentsPath with the exact custom_components directory, or provide -HaConfigPath."
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $integrationSource = Join-Path $scriptDir 'custom_components\kia_uvo'
 $brokerSource = Join-Path $scriptDir 'broker'
@@ -66,13 +89,15 @@ if (-not (Test-Path $integrationSource)) {
 }
 
 if (-not $SkipIntegration) {
-    if ([string]::IsNullOrWhiteSpace($HaConfigPath)) {
-        throw "Specify -HaConfigPath with your Home Assistant config directory, for example C:\\ha\\config or a mapped drive path."
+    $targetCustomComponents = Resolve-CustomComponentsPath -CustomComponentsPath $CustomComponentsPath -HaConfigPath $HaConfigPath
+
+    if (-not (Split-Path $targetCustomComponents -Leaf).Equals('custom_components', [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Custom components path must point to the exact custom_components directory. Received: $targetCustomComponents"
     }
 
-    $targetCustomComponents = Join-Path $HaConfigPath 'custom_components'
     $targetIntegration = Join-Path $targetCustomComponents 'kia_uvo'
-    $backupRoot = Join-Path $HaConfigPath 'backups\custom_components'
+    $configRoot = Split-Path $targetCustomComponents -Parent
+    $backupRoot = Join-Path $configRoot 'backups\custom_components'
     $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 
     New-Item -ItemType Directory -Path $targetCustomComponents -Force | Out-Null
