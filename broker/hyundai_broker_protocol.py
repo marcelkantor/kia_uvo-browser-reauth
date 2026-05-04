@@ -34,6 +34,7 @@ def namespace_from_protocol_url(url: str) -> argparse.Namespace:
     return argparse.Namespace(
         state=state,
         webhook_url=webhook_url,
+        brand=_single(params, "brand", "hyundai"),
         language=_single(params, "language", "en"),
         ui_locales=_single(params, "ui_locales", "en-US"),
         authorize_wait_seconds=float(_single(params, "authorize_wait_seconds", "2.0")),

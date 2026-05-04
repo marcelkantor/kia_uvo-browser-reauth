@@ -1,7 +1,7 @@
-"""Local token broker for Hyundai Europe reauthentication.
+"""Local token broker for Europe reauthentication.
 
-This helper is meant to run on the user's desktop. It opens the Hyundai login
-flow in Chrome, lets the user solve login and reCAPTCHA manually, captures the
+This helper is meant to run on the user's desktop. It opens the brand-specific
+login flow in Chrome, lets the user solve login and reCAPTCHA manually, captures the
 authorization code from the final browser URL, exchanges it for a token, and
 POSTs the token payload to a one-time Home Assistant webhook.
 
@@ -28,64 +28,14 @@ from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-
-
-HYUNDAI_IDP_BASE_URL = "https://idpconnect-eu.hyundai.com/auth/api/v2/user/oauth2"
-LOGIN_CLIENT_ID = "peuhyundaiidm-ctb"
-LOGIN_REDIRECT_URI = "https://ctbapi.hyundai-europe.com/api/auth"
-TOKEN_CLIENT_ID = "6d477c38-3ca4-4cf3-9557-2a1929a94654"
-TOKEN_CLIENT_SECRET = "KUy49XxPzLpLuoK0xhBC77W6VXhmtQR9iQhmIFjjoY4IpxsV"
-TOKEN_REDIRECT_URI = "https://prd.eu-ccapi.hyundai.com:8080/api/v1/user/oauth2/token"
-
-
-def build_login_url(*, state: str, language: str, ui_locales: str) -> str:
-    return (
-        f"{HYUNDAI_IDP_BASE_URL}/authorize?"
-        f"client_id={LOGIN_CLIENT_ID}&"
-        f"redirect_uri={requests.utils.quote(LOGIN_REDIRECT_URI, safe='')}&"
-        "nonce=&"
-        f"state={requests.utils.quote(state, safe='')}&"
-        "scope=openid+profile+email+phone&"
-        "response_type=code&"
-        f"connector_client_id={LOGIN_CLIENT_ID}&"
-        "connector_scope=&"
-        "connector_session_key=&"
-        "country=&"
-        "captcha=1&"
-        f"ui_locales={requests.utils.quote(ui_locales, safe='')}&"
-        f"lang={requests.utils.quote(language, safe='')}"
-    )
-
-
-def build_token_authorize_url(*, state: str, language: str) -> str:
-    return (
-        f"{HYUNDAI_IDP_BASE_URL}/authorize?"
-        "response_type=code&"
-        f"client_id={TOKEN_CLIENT_ID}&"
-        f"redirect_uri={requests.utils.quote(TOKEN_REDIRECT_URI, safe='')}&"
-        f"lang={requests.utils.quote(language, safe='')}&"
-        f"state={requests.utils.quote(state, safe='')}"
-    )
-
-
-def exchange_code_for_token(code: str, *, timeout: float = 20.0) -> dict[str, Any]:
-    response = requests.post(
-        f"{HYUNDAI_IDP_BASE_URL}/token",
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": TOKEN_REDIRECT_URI,
-            "client_id": TOKEN_CLIENT_ID,
-            "client_secret": TOKEN_CLIENT_SECRET,
-        },
-        timeout=timeout,
-    )
-    payload = response.json()
-    if response.status_code != 200:
-        raise RuntimeError(
-            f"OAuth token endpoint returned HTTP {response.status_code}: {payload}"
-        )
-    return payload
+from custom_components.kia_uvo.browser_reauth import (
+    brand_requires_secondary_authorize,
+    build_login_url,
+    build_token_authorize_url,
+    exchange_code_for_token,
+    get_brand_config,
+    normalize_brand,
+)
 
 
 def _install_driver() -> str:
@@ -134,29 +84,36 @@ def _extract_code_from_url(url: str) -> str | None:
 
 
 def run_broker(args: argparse.Namespace) -> int:
+    brand = normalize_brand(getattr(args, "brand", None))
+    config = get_brand_config(brand)
     print("=" * 70)
-    print("HYUNDAI TOKEN BROKER")
-    print("Complete Hyundai login and reCAPTCHA in the opened Chrome window.")
+    print(f"{brand.upper()} TOKEN BROKER")
+    print(
+        f"Complete the {brand.capitalize()} login and reCAPTCHA in the opened Chrome window."
+    )
     print("=" * 70)
 
     driver = _start_driver()
     try:
         driver.get(
             build_login_url(
+                brand=brand,
                 state=args.state,
                 language=args.language,
                 ui_locales=args.ui_locales,
             )
         )
 
-        input("\nPress ENTER after Hyundai login is complete...")
+        input(f"\nPress ENTER after {brand.capitalize()} login is complete...")
 
-        driver.get(
-            build_token_authorize_url(
-                state=args.state,
-                language=args.language,
+        if brand_requires_secondary_authorize(brand):
+            driver.get(
+                build_token_authorize_url(
+                    brand=brand,
+                    state=args.state,
+                    language=args.language,
+                )
             )
-        )
         time.sleep(args.authorize_wait_seconds)
 
         current_url = driver.current_url
@@ -168,13 +125,14 @@ def run_broker(args: argparse.Namespace) -> int:
             print(f"Debug HTML saved to: {debug_path}")
             return 1
 
-        token_payload = exchange_code_for_token(code)
+        token_payload = exchange_code_for_token(code, brand=brand)
         refresh_token = token_payload.get("refresh_token")
         access_token = token_payload.get("access_token")
         print("\nCaptured token successfully.")
         print(
             json.dumps(
                 {
+                    "brand": config.brand_key,
                     "has_refresh_token": bool(refresh_token),
                     "has_access_token": bool(access_token),
                     "state": args.state,
@@ -189,6 +147,7 @@ def run_broker(args: argparse.Namespace) -> int:
             "source": {
                 "platform": platform.system(),
                 "broker": "local_selenium",
+                "brand": config.brand_key,
             },
         }
 
@@ -206,12 +165,13 @@ def run_broker(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Hyundai Europe token broker")
+    parser = argparse.ArgumentParser(description="Hyundai / Kia Europe token broker")
     parser.add_argument("--state", required=True, help="One-time reauth session state")
     parser.add_argument(
         "--webhook-url",
         help="One-time Home Assistant webhook URL that accepts the token payload",
     )
+    parser.add_argument("--brand", default="hyundai")
     parser.add_argument("--language", default="en")
     parser.add_argument("--ui-locales", default="en-US")
     parser.add_argument("--authorize-wait-seconds", type=float, default=2.0)

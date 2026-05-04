@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.util import dt as dt_util
 
-from .const import DATA_BROKER_REAUTH_MANAGER, DOMAIN
+from .const import BRANDS, DATA_BROKER_REAUTH_MANAGER, DOMAIN
 from .token_store import async_store_token_and_reload
 
 SESSION_TTL = timedelta(minutes=15)
@@ -74,6 +74,8 @@ class BrokerReauthSessionManager:
         flow_id: str | None = None,
         entry_id: str,
         username: str | None = None,
+        brand: int | str | None = None,
+        language: str | None = None,
     ) -> BrokerReauthSession:
         """Create a one-time broker session and webhook."""
 
@@ -95,7 +97,11 @@ class BrokerReauthSessionManager:
             state=secrets.token_urlsafe(24),
             created_at=created_at,
             expires_at=created_at + SESSION_TTL,
-            metadata={"username": username or ""},
+            metadata={
+                "username": username or "",
+                "brand": self._normalize_brand(brand),
+                "language": language or "en",
+            },
         )
 
         webhook.async_register(
@@ -113,6 +119,16 @@ class BrokerReauthSessionManager:
         self._sessions_by_webhook[session.webhook_id] = session
         self._sessions_by_state[session.state] = session
         return session
+
+    @staticmethod
+    def _normalize_brand(brand: int | str | None) -> str:
+        """Normalize config-entry brand data into a broker brand key."""
+
+        if isinstance(brand, int):
+            return BRANDS.get(brand, "Hyundai").lower()
+        if isinstance(brand, str) and brand.strip():
+            return brand.strip().lower()
+        return "hyundai"
 
     def async_get_by_flow(self, flow_id: str) -> BrokerReauthSession | None:
         """Get a session by config flow id."""
@@ -162,24 +178,30 @@ class BrokerReauthSessionManager:
         """Return description placeholders for the reauth waiting step."""
 
         webhook_url = self.async_webhook_url(session)
+        brand = session.metadata.get("brand", "hyundai")
+        language = session.metadata.get("language", "en")
         broker_command = (
             "python hyundai_token_broker.py "
+            f'--brand "{brand}" '
             f'--state "{session.state}" '
+            f'--language "{language}" '
             f'--webhook-url "{webhook_url}"'
         )
         broker_launch_url = (
             "hyundai-broker://launch?"
             + urlencode(
                 {
+                    "brand": brand,
                     "state": session.state,
                     "webhook_url": webhook_url,
-                    "language": "en",
-                    "ui_locales": "en-US",
+                    "language": language,
+                    "ui_locales": language,
                 }
             )
         )
         expires_at = dt_util.as_local(session.expires_at).strftime("%Y-%m-%d %H:%M:%S")
         return {
+            "brand": brand.capitalize(),
             "state": session.state,
             "webhook_url": webhook_url,
             "expires_at": expires_at,

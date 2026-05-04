@@ -400,6 +400,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         flow_id=self.flow_id,
                         entry_id=self.reauth_entry.entry_id,
                         username=self.reauth_entry.data.get(CONF_USERNAME),
+                        brand=self.reauth_entry.data.get(CONF_BRAND),
+                        language=self.hass.config.language,
                     )
                     self._broker_session_state = session.state
                     return self.async_external_step(
@@ -463,6 +465,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     flow_id=self.flow_id,
                     entry_id=entry.entry_id,
                     username=entry.data.get(CONF_USERNAME),
+                    brand=entry.data.get(CONF_BRAND),
+                    language=self.hass.config.language,
                 )
                 self._broker_session_state = session.state
                 return self.async_external_step(

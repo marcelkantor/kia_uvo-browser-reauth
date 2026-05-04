@@ -14,7 +14,7 @@ from hyundai_kia_connect_api import (
     WindowRequestOptions,
 )
 
-from .const import DOMAIN
+from .const import CONF_BRAND, DOMAIN
 from .reauth_session import async_get_session_manager
 
 SERVICE_UPDATE = "update"
@@ -298,6 +298,8 @@ def async_setup_services(hass: HomeAssistant) -> bool:
         session = await manager.async_create_session(
             entry_id=coordinator.config_entry.entry_id,
             username=coordinator.config_entry.data.get(CONF_USERNAME),
+            brand=coordinator.config_entry.data.get(CONF_BRAND),
+            language=hass.config.language,
         )
         placeholders = manager.async_description_placeholders(session)
         title = (
@@ -308,8 +310,8 @@ def async_setup_services(hass: HomeAssistant) -> bool:
         persistent_notification.async_create(
             hass,
             (
-                "Run the local Hyundai token broker and complete the Hyundai "
-                "login in Chrome.\n\n"
+                f"Run the local {placeholders['brand']} token broker and complete "
+                f"the {placeholders['brand']} login in Chrome.\n\n"
                 f"Session expires at: {placeholders['expires_at']}\n\n"
                 f"Webhook URL:\n{placeholders['webhook_url']}\n\n"
                 f"State:\n{placeholders['state']}\n\n"
