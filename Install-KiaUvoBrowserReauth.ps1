@@ -29,12 +29,12 @@ function Invoke-Python {
     )
 
     if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 @Arguments
+        & py -3 @Arguments 2>&1 | Out-Host
         return $LASTEXITCODE
     }
 
     if (Get-Command python -ErrorAction SilentlyContinue) {
-        & python @Arguments
+        & python @Arguments 2>&1 | Out-Host
         return $LASTEXITCODE
     }
 
